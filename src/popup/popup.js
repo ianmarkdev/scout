@@ -1,0 +1,386 @@
+/**
+ * The popup: reads the active tab when opened (only because the user clicked the extension),
+ * shows what was found in an editable form, and sends it to Career Engine only when the user
+ * presses Save. Unsaved edits are kept per page in session storage, so closing the popup by
+ * accident loses nothing.
+ */
+
+import { snapshotPage } from '../content/snapshot.js';
+import { METHOD_LABELS, extractJob } from '../extract/index.js';
+import { describeResult, safeAppLink, saveApplication } from '../lib/api.js';
+import { LIMITS, SERVER_FIELD_MAP, buildPayload, emptyForm, formFromExtraction, salaryTextFromFields, validateForm } from '../lib/form.js';
+import { clearDraft, loadDraft, loadSettings, saveDraft } from '../lib/storage.js';
+import { httpUrl } from '../lib/url.js';
+
+const FIELD_LABELS = {
+    title: 'job title', company: 'company', location: 'location', description: 'description',
+    salary: 'salary', employmentType: 'employment type',
+};
+
+const SOURCE_LABELS = { adapter: 'site', 'json-ld': 'JSON-LD', meta: 'meta', dom: 'page', fallback: 'guess' };
+
+/** Extraction field → form field showing its source badge. */
+const SOURCE_TARGETS = {
+    title: 'title', company: 'company', location: 'location', workplaceType: 'workplaceType',
+    employmentType: 'employmentType', salary: 'salaryText', description: 'description',
+    postedAt: 'postedAt', deadline: 'deadline', externalId: 'externalId',
+};
+
+const SALARY_FIELDS = new Set(['salaryMin', 'salaryMax', 'salaryCurrency', 'salaryPeriod']);
+
+/**
+ * @param {{ doc?: Document, chromeApi?: typeof chrome, fetchImpl?: typeof fetch, now?: () => Date }} [options]
+ */
+export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (...args) => fetch(...args), now = () => new Date() } = {}) {
+    const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (doc.getElementById(id));
+    const form = /** @type {HTMLFormElement} */ ($('job-form'));
+    const saveButton = /** @type {HTMLButtonElement} */ ($('save'));
+    const reextractButton = /** @type {HTMLButtonElement} */ ($('reextract'));
+    const inputs = /** @type {Record<string, HTMLInputElement>} */ (Object.fromEntries(
+        Object.keys(emptyForm()).map((name) => [name, form.elements.namedItem(name)]),
+    ));
+
+    const state = {
+        tabId: /** @type {number | null} */ (null),
+        pageUrl: '',
+        method: 'manual',
+        selection: '',
+        dirty: false,
+        saving: false,
+        confirmDiscard: false,
+        lastResult: /** @type {import('../lib/api.js').SaveResult | null} */ (null),
+    };
+
+    const readForm = () => /** @type {import('../lib/form.js').JobForm} */ (Object.fromEntries(Object.entries(inputs).map(([name, el]) => [name, el.value])));
+
+    function writeForm(/** @type {Partial<import('../lib/form.js').JobForm>} */ values) {
+        for (const [name, el] of Object.entries(inputs)) {
+            el.value = values[/** @type {keyof typeof values} */ (name)] ?? '';
+        }
+
+        updateCount();
+        setFieldErrors({});
+    }
+
+    function updateCount() {
+        const length = inputs.description.value.trim().length;
+        const count = $('description-count');
+        count.textContent = `${length.toLocaleString('en-GB')} / ${LIMITS.description.toLocaleString('en-GB')} characters`;
+        count.classList.toggle('over', length > LIMITS.description);
+    }
+
+    /**
+     * @param {Record<string, string>} errors form field → message
+     */
+    function setFieldErrors(errors) {
+        for (const el of Array.from(doc.querySelectorAll('[data-error-for]'))) {
+            const name = el.getAttribute('data-error-for') ?? '';
+            el.textContent = errors[name] ?? '';
+
+            if (errors[name]) inputs[name]?.setAttribute('aria-invalid', 'true'); else inputs[name]?.removeAttribute('aria-invalid');
+        }
+    }
+
+    /**
+     * @param {'success' | 'warning' | 'error' | 'info'} tone
+     * @param {string} title
+     * @param {string} [detail]
+     * @param {{ link?: string, linkText?: string, saveAnyway?: boolean, settings?: boolean, list?: string[] }} [extras]
+     */
+    function showStatus(tone, title, detail = '', extras = {}) {
+        const status = $('status');
+        status.dataset.tone = tone;
+        $('status-title').textContent = title;
+        $('status-detail').textContent = detail;
+
+        const list = $('status-list');
+        list.replaceChildren(...(extras.list ?? []).map((item) => Object.assign(doc.createElement('li'), { textContent: item })));
+        list.hidden = !extras.list?.length;
+
+        const link = /** @type {HTMLAnchorElement} */ ($('status-link'));
+        link.hidden = !extras.link;
+        link.textContent = extras.linkText ?? 'Open in Career Engine';
+
+        if (extras.link) link.href = extras.link; else link.removeAttribute('href');
+
+        $('save-anyway').hidden = !extras.saveAnyway;
+        $('status-settings').hidden = !extras.settings;
+        status.hidden = false;
+    }
+
+    function hideStatus() {
+        $('status').hidden = true;
+    }
+
+    /**
+     * @param {string} method
+     * @param {{ missing?: string[], warnings?: string[], sources?: Record<string, string>, note?: string }} info
+     */
+    function showExtraction(method, { missing = [], warnings = [], sources = {}, note = '' }) {
+        $('extraction').hidden = false;
+        $('method-line').textContent = note || (method === 'manual'
+            ? 'No job details were found on this page. Fill in the form yourself.'
+            : `Found using ${METHOD_LABELS[/** @type {keyof typeof METHOD_LABELS} */ (method)]}. Check the details before saving.`);
+
+        const missingLine = $('missing-line');
+        missingLine.hidden = missing.length === 0;
+        missingLine.textContent = missing.length ? `Not found: ${missing.map((key) => FIELD_LABELS[/** @type {keyof typeof FIELD_LABELS} */ (key)] ?? key).join(', ')}.` : '';
+
+        const list = $('warnings');
+        list.replaceChildren(...warnings.map((text) => Object.assign(doc.createElement('li'), { textContent: text })));
+        list.hidden = warnings.length === 0;
+
+        for (const badge of Array.from(doc.querySelectorAll('[data-source-for]'))) {
+            badge.textContent = '';
+        }
+
+        for (const [field, source] of Object.entries(sources)) {
+            const target = SOURCE_TARGETS[/** @type {keyof typeof SOURCE_TARGETS} */ (field)];
+            const badge = target ? doc.querySelector(`[data-source-for="${target}"]`) : null;
+
+            if (badge) badge.textContent = SOURCE_LABELS[/** @type {keyof typeof SOURCE_LABELS} */ (source)] ?? source;
+        }
+
+        $('use-selection').hidden = state.selection.length < 20;
+    }
+
+    function resetDiscardConfirmation() {
+        state.confirmDiscard = false;
+        reextractButton.textContent = 'Re-extract';
+    }
+
+    async function persistDraft() {
+        if (state.pageUrl === '') return;
+
+        try {
+            await saveDraft(chromeApi.storage.session, state.pageUrl, { form: readForm(), method: state.method });
+        } catch {
+            // Losing the draft copy is not worth interrupting the user for; the form still has the edits.
+        }
+    }
+
+    async function extract() {
+        hideStatus();
+        resetDiscardConfirmation();
+        $('method-line').textContent = 'Reading the page…';
+        $('extraction').hidden = false;
+
+        let snapshot;
+
+        try {
+            const results = await chromeApi.scripting.executeScript({ target: { tabId: /** @type {number} */ (state.tabId) }, func: snapshotPage });
+            snapshot = results?.[0]?.result;
+
+            if (!snapshot || typeof snapshot.html !== 'string') {
+                throw new Error('The page returned nothing');
+            }
+        } catch (error) {
+            state.method = 'manual';
+            state.selection = '';
+            writeForm({ url: state.pageUrl });
+            showExtraction('manual', { note: 'This page could not be read. You can still fill in the form by hand.' });
+            showStatus('error', 'Could not read this page.', `${error instanceof Error ? error.message : String(error)}. Some pages cannot be read by extensions (the Chrome Web Store, built-in PDF viewer, other extensions' pages). Reload the page and try again.`);
+
+            return;
+        }
+
+        let extraction;
+
+        try {
+            extraction = extractJob(snapshot);
+        } catch (error) {
+            state.method = 'manual';
+            writeForm({ url: state.pageUrl });
+            showExtraction('manual', { note: 'Extraction failed. Fill in the form by hand.' });
+            showStatus('error', 'Could not extract the job details.', error instanceof Error ? error.message : String(error));
+
+            return;
+        }
+
+        state.method = extraction.method;
+        state.selection = extraction.selection;
+        state.dirty = false;
+        writeForm(formFromExtraction(extraction));
+
+        if (inputs.url.value === '') inputs.url.value = state.pageUrl;
+
+        showExtraction(extraction.method, extraction);
+    }
+
+    /**
+     * @param {boolean} allowDuplicate
+     */
+    async function save(allowDuplicate = false) {
+        if (state.saving) return null;
+
+        const values = readForm();
+        const errors = validateForm(values);
+        setFieldErrors(errors);
+
+        if (Object.keys(errors).length > 0) {
+            showStatus('error', 'Check the highlighted fields.', 'Nothing was sent.');
+            inputs[Object.keys(errors)[0]]?.focus();
+
+            return null;
+        }
+
+        const settings = await loadSettings(chromeApi.storage.local);
+
+        if (settings.baseUrl === '' || settings.token === '') {
+            showStatus('error', 'Connect to Career Engine first.', 'Add the app address and an API token in Settings. Your edits are kept.', { settings: true });
+
+            return null;
+        }
+
+        const origin = new URL(settings.baseUrl).origin;
+
+        if (!(await chromeApi.permissions.contains({ origins: [`${origin}/*`] }))) {
+            showStatus('error', `Career Clipper may not contact ${origin} yet.`, 'Open Settings and press “Save and allow access”. Your edits are kept.', { settings: true });
+
+            return null;
+        }
+
+        state.saving = true;
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving…';
+
+        /** @type {import('../lib/api.js').SaveResult} */
+        let result;
+
+        try {
+            result = await saveApplication({
+                baseUrl: settings.baseUrl,
+                token: settings.token,
+                payload: buildPayload(values, { method: state.method, capturedAt: now().toISOString(), allowDuplicate }),
+                fetchImpl,
+            });
+        } finally {
+            state.saving = false;
+            saveButton.disabled = false;
+            saveButton.textContent = 'Save to Career Engine';
+        }
+
+        state.lastResult = result;
+        const message = describeResult(result, settings.baseUrl);
+
+        if (result.kind === 'created') {
+            state.dirty = false;
+            await clearDraft(chromeApi.storage.session, state.pageUrl).catch(() => {});
+            showStatus('success', message.title, message.detail, { link: safeAppLink(result.application.url, settings.baseUrl) });
+        } else if (result.kind === 'duplicate') {
+            showStatus('warning', message.title, message.detail, { link: safeAppLink(result.existing?.url, settings.baseUrl), linkText: 'Open the saved one', saveAnyway: true });
+        } else if (result.kind === 'validation') {
+            /** @type {Record<string, string>} */
+            const fieldErrors = {};
+            const other = [];
+
+            for (const [key, messages] of Object.entries(result.errors)) {
+                const field = SERVER_FIELD_MAP[/** @type {keyof typeof SERVER_FIELD_MAP} */ (key)];
+                const text = Array.isArray(messages) ? messages.join(' ') : String(messages);
+
+                if (field) fieldErrors[field] = text; else other.push(text);
+            }
+
+            setFieldErrors(fieldErrors);
+            showStatus('error', message.title, other.length ? '' : message.detail, { list: other });
+        } else {
+            showStatus(message.tone, message.title, message.detail, { settings: result.kind === 'unauthenticated' || result.kind === 'not_found' || result.kind === 'network' });
+        }
+
+        return result;
+    }
+
+    async function init() {
+        let tab;
+
+        try {
+            [tab] = await chromeApi.tabs.query({ active: true, currentWindow: true });
+        } catch (error) {
+            showStatus('error', 'Could not find the current tab.', error instanceof Error ? error.message : String(error));
+
+            return;
+        }
+
+        if (!tab || typeof tab.id !== 'number' || !httpUrl(tab.url)) {
+            showStatus('error', 'Open a job listing first.', 'Career Clipper reads ordinary web pages (http or https). It cannot read browser pages, the Chrome Web Store or local files.');
+
+            return;
+        }
+
+        state.tabId = tab.id;
+        state.pageUrl = /** @type {string} */ (tab.url);
+        form.hidden = false;
+
+        const settings = await loadSettings(chromeApi.storage.local);
+
+        const draft = await loadDraft(chromeApi.storage.session, state.pageUrl).catch(() => null);
+
+        if (draft) {
+            state.method = draft.method;
+            state.dirty = true;
+            writeForm(draft.form);
+            showExtraction(draft.method, { note: 'Restored your unsaved edits for this page. Press Re-extract to start over.' });
+        } else {
+            await extract();
+        }
+
+        if (settings.baseUrl === '' || settings.token === '') {
+            showStatus('info', 'Not connected yet.', 'You can review the job now. Add the Career Engine address and API token in Settings before saving.', { settings: true });
+        }
+    }
+
+    form.addEventListener('input', (event) => {
+        const name = /** @type {HTMLInputElement} */ (event.target).name;
+        state.dirty = true;
+        resetDiscardConfirmation();
+
+        if (SALARY_FIELDS.has(name)) {
+            inputs.salaryText.value = salaryTextFromFields(readForm());
+        }
+
+        if (name === 'description') updateCount();
+
+        const error = doc.querySelector(`[data-error-for="${name}"]`);
+
+        if (error) {
+            error.textContent = '';
+            inputs[name]?.removeAttribute('aria-invalid');
+        }
+
+        void persistDraft();
+    });
+
+    form.addEventListener('change', () => void persistDraft());
+
+    form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        void save(false);
+    });
+
+    $('save-anyway').addEventListener('click', () => void save(true));
+
+    reextractButton.addEventListener('click', async () => {
+        if (state.dirty && !state.confirmDiscard) {
+            state.confirmDiscard = true;
+            reextractButton.textContent = 'Discard edits?';
+
+            return;
+        }
+
+        await clearDraft(chromeApi.storage.session, state.pageUrl).catch(() => {});
+        await extract();
+    });
+
+    $('use-selection').addEventListener('click', () => {
+        inputs.description.value = state.selection;
+        state.dirty = true;
+        updateCount();
+        void persistDraft();
+    });
+
+    const openSettings = () => void chromeApi.runtime.openOptionsPage();
+    $('open-settings').addEventListener('click', openSettings);
+    $('status-settings').addEventListener('click', openSettings);
+
+    return { ready: init(), state, save, extract, readForm };
+}

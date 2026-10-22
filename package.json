@@ -1,0 +1,16 @@
+{
+    "name": "career-clipper",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Chrome extension that saves job listings to Career Engine",
+    "type": "module",
+    "scripts": {
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "icons": "node scripts/make-icons.mjs"
+    },
+    "devDependencies": {
+        "happy-dom": "^21.0.4",
+        "vitest": "^5.0.5"
+    }
+}

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Career Clipper settings</title>
+    <link rel="stylesheet" href="../ui.css">
+</head>
+<body class="options">
+    <h1>Career Clipper settings</h1>
+    <p class="help">Connect the extension to your Career Engine app. Nothing is sent anywhere else.</p>
+
+    <div id="status" class="status" role="status" aria-live="polite" hidden>
+        <p id="status-title" class="status-title"></p>
+        <p id="status-detail" class="status-detail"></p>
+    </div>
+
+    <form id="settings-form" novalidate>
+        <div class="field">
+            <label for="baseUrl">Career Engine address</label>
+            <input id="baseUrl" name="baseUrl" type="url" placeholder="http://127.0.0.1:8000" autocomplete="off" spellcheck="false">
+            <p class="help">Where the app runs, e.g. <code>http://127.0.0.1:8000</code> or <code>https://career-engine.test</code>. Plain http is only allowed for this computer.</p>
+            <p class="field-error" data-error-for="baseUrl"></p>
+        </div>
+
+        <div class="field">
+            <label for="token">API token</label>
+            <input id="token" name="token" type="password" autocomplete="off" spellcheck="false">
+            <label class="inline"><input id="show-token" type="checkbox"> Show token</label>
+            <p class="help">Create one in the Career Engine folder with <code>php artisan app:extension-token you@example.com</code>. It can only save new jobs, and expires after 90 days by default.</p>
+            <p class="field-error" data-error-for="token"></p>
+        </div>
+
+        <div class="buttons">
+            <button type="submit" id="save" class="primary">Save and allow access</button>
+            <button type="button" id="test" class="secondary">Test connection</button>
+            <button type="button" id="forget" class="secondary">Remove token</button>
+        </div>
+    </form>
+
+    <h2>Privacy</h2>
+    <p class="help">The extension reads a page only when you click its icon, and sends the job to your Career Engine app only when you press Save. The token is stored in this browser profile; anyone with access to the profile could copy it, so revoke it with <code>php artisan app:extension-token you@example.com --revoke</code> if the computer is shared or lost.</p>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
