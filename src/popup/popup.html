@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Career Clipper</title>
+    <link rel="stylesheet" href="../ui.css">
+</head>
+<body class="popup">
+    <header class="bar">
+        <h1>Career Clipper</h1>
+        <button type="button" id="open-settings" class="link-button">Settings</button>
+    </header>
+
+    <main>
+        <div id="status" class="status" role="status" aria-live="polite" hidden>
+            <p id="status-title" class="status-title"></p>
+            <p id="status-detail" class="status-detail"></p>
+            <ul id="status-list" class="status-list" hidden></ul>
+            <div class="status-actions">
+                <a id="status-link" target="_blank" rel="noopener noreferrer" hidden>Open in Career Engine</a>
+                <button type="button" id="save-anyway" class="secondary" hidden>Save a copy anyway</button>
+                <button type="button" id="status-settings" class="secondary" hidden>Open Settings</button>
+            </div>
+        </div>
+
+        <section id="extraction" class="extraction" aria-label="Extraction details" hidden>
+            <p id="method-line"></p>
+            <p id="missing-line" class="missing" hidden></p>
+            <ul id="warnings" class="warnings" hidden></ul>
+            <button type="button" id="use-selection" class="secondary small" hidden>Use selected text as description</button>
+        </section>
+
+        <form id="job-form" novalidate hidden>
+            <div class="field">
+                <label for="title">Job title <span class="required" aria-hidden="true">*</span> <span class="source" data-source-for="title"></span></label>
+                <input id="title" name="title" type="text" maxlength="400" required autocomplete="off">
+                <p class="field-error" data-error-for="title"></p>
+            </div>
+
+            <div class="field">
+                <label for="company">Company <span class="required" aria-hidden="true">*</span> <span class="source" data-source-for="company"></span></label>
+                <input id="company" name="company" type="text" maxlength="400" required autocomplete="off">
+                <p class="field-error" data-error-for="company"></p>
+            </div>
+
+            <div class="row">
+                <div class="field grow">
+                    <label for="location">Location <span class="source" data-source-for="location"></span></label>
+                    <input id="location" name="location" type="text" maxlength="400" autocomplete="off">
+                    <p class="field-error" data-error-for="location"></p>
+                </div>
+                <div class="field">
+                    <label for="workplaceType">Workplace <span class="source" data-source-for="workplaceType"></span></label>
+                    <select id="workplaceType" name="workplaceType">
+                        <option value="">Unknown</option>
+                        <option value="remote">Remote</option>
+                        <option value="hybrid">Hybrid</option>
+                        <option value="on_site">On-site</option>
+                    </select>
+                    <p class="field-error" data-error-for="workplaceType"></p>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="employmentType">Employment type <span class="source" data-source-for="employmentType"></span></label>
+                <select id="employmentType" name="employmentType">
+                    <option value="">Unknown</option>
+                    <option value="full_time">Full time</option>
+                    <option value="part_time">Part time</option>
+                    <option value="contract">Contract</option>
+                    <option value="freelance">Freelance</option>
+                    <option value="internship">Internship</option>
+                    <option value="other">Other</option>
+                </select>
+                <p class="field-error" data-error-for="employmentType"></p>
+            </div>
+
+            <fieldset class="salary">
+                <legend>Salary <span class="source" data-source-for="salaryText"></span></legend>
+                <div class="row">
+                    <div class="field">
+                        <label for="salaryMin">Min</label>
+                        <input id="salaryMin" name="salaryMin" type="text" inputmode="decimal" autocomplete="off">
+                        <p class="field-error" data-error-for="salaryMin"></p>
+                    </div>
+                    <div class="field">
+                        <label for="salaryMax">Max</label>
+                        <input id="salaryMax" name="salaryMax" type="text" inputmode="decimal" autocomplete="off">
+                        <p class="field-error" data-error-for="salaryMax"></p>
+                    </div>
+                    <div class="field narrow">
+                        <label for="salaryCurrency">Currency</label>
+                        <input id="salaryCurrency" name="salaryCurrency" type="text" maxlength="3" placeholder="GBP" autocomplete="off">
+                        <p class="field-error" data-error-for="salaryCurrency"></p>
+                    </div>
+                    <div class="field">
+                        <label for="salaryPeriod">Per</label>
+                        <select id="salaryPeriod" name="salaryPeriod">
+                            <option value="">—</option>
+                            <option value="hour">hour</option>
+                            <option value="day">day</option>
+                            <option value="week">week</option>
+                            <option value="month">month</option>
+                            <option value="year">year</option>
+                        </select>
+                        <p class="field-error" data-error-for="salaryPeriod"></p>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="salaryText">Saved as</label>
+                    <input id="salaryText" name="salaryText" type="text" maxlength="400" placeholder="e.g. GBP 60,000–70,000 / year, or “Competitive”" autocomplete="off">
+                    <p class="field-error" data-error-for="salaryText"></p>
+                </div>
+            </fieldset>
+
+            <div class="row">
+                <div class="field grow">
+                    <label for="deadline">Closing date <span class="source" data-source-for="deadline"></span></label>
+                    <input id="deadline" name="deadline" type="date">
+                    <p class="field-error" data-error-for="deadline"></p>
+                </div>
+                <div class="field grow">
+                    <label for="postedAt">Posted <span class="source" data-source-for="postedAt"></span></label>
+                    <input id="postedAt" name="postedAt" type="date">
+                    <p class="field-error" data-error-for="postedAt"></p>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="url">Listing URL</label>
+                <input id="url" name="url" type="url" maxlength="4000" autocomplete="off">
+                <p class="field-error" data-error-for="url"></p>
+            </div>
+
+            <div class="field">
+                <label for="externalId">Listing ID / reference <span class="source" data-source-for="externalId"></span></label>
+                <input id="externalId" name="externalId" type="text" maxlength="400" autocomplete="off">
+                <p class="field-error" data-error-for="externalId"></p>
+            </div>
+
+            <div class="field">
+                <label for="description">Job description <span class="source" data-source-for="description"></span></label>
+                <textarea id="description" name="description" rows="10" spellcheck="false"></textarea>
+                <p id="description-count" class="count"></p>
+                <p class="field-error" data-error-for="description"></p>
+            </div>
+
+            <div class="actions">
+                <button type="button" id="reextract" class="secondary">Re-extract</button>
+                <button type="submit" id="save" class="primary">Save to Career Engine</button>
+            </div>
+            <p class="hint">Nothing is sent until you press Save.</p>
+        </form>
+    </main>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
