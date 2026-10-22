@@ -131,8 +131,9 @@ describe('urls', () => {
 describe('form', () => {
     const filled = () => ({ ...emptyForm(), title: 'Engineer', company: 'Acme', description: 'Build things.', url: 'https://x.example/job/1' });
 
-    test('requires title and company and enforces Career Engine limits', () => {
-        expect(validateForm(emptyForm())).toMatchObject({ title: expect.any(String), company: expect.any(String) });
+    test('requires a title (company is optional) and enforces Career Engine limits', () => {
+        expect(validateForm(emptyForm())).toMatchObject({ title: expect.any(String) });
+        expect(validateForm(emptyForm()).company).toBeUndefined();
         expect(validateForm(filled())).toEqual({});
         expect(validateForm({ ...filled(), description: 'x'.repeat(50001) }).description).toContain('Nothing is cut automatically');
         expect(validateForm({ ...filled(), url: 'not a url' }).url).toBeDefined();
@@ -174,6 +175,7 @@ describe('form', () => {
         const payload = buildPayload({ ...emptyForm(), title: 'T', company: 'C' }, { method: 'manual', capturedAt: 'now', allowDuplicate: true });
 
         expect(payload).toMatchObject({ source_url: null, location: null, job_description: null, allow_duplicate: true });
+        expect(buildPayload({ ...emptyForm(), title: 'T' }, { method: 'manual', capturedAt: 'now' }).company_name).toBeNull();
         expect(payload.capture.salary).toBeNull();
     });
 

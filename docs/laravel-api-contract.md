@@ -48,7 +48,8 @@ Headers: `Authorization: Bearer <token>`, `Accept: application/json`, `Content-T
 
 | Field | Rules (validated after plain-text normalisation) |
 |---|---|
-| `company_name`, `role_title` | required, string, max 200 |
+| `role_title` | required, string, max 200 |
+| `company_name` | nullable, string, max 200 |
 | `source_url` | nullable, `http`/`https` URL, max 2000 |
 | `location`, `salary_text` | nullable, string, max 200 |
 | `employment_type` | nullable, one of `full_time, part_time, contract, freelance, internship, other` |

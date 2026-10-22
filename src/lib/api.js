@@ -3,7 +3,7 @@
  * Every outcome is returned as a typed result (never thrown), so the popup can always say
  * what happened and keep the user's edits.
  *
- * @typedef {{ ulid: string, url: string, company_name: string, role_title: string, stage: string, deleted: boolean }} ApplicationSummary
+ * @typedef {{ ulid: string, url: string, company_name: string | null, role_title: string, stage: string, deleted: boolean }} ApplicationSummary
  * @typedef {(
  *   | { kind: 'created', application: ApplicationSummary }
  *   | { kind: 'duplicate', message: string, existing: ApplicationSummary }
@@ -125,7 +125,7 @@ export function safeAppLink(url, baseUrl) {
 export function describeResult(result, baseUrl) {
     switch (result.kind) {
         case 'created':
-            return { tone: 'success', title: 'Saved to Career Engine.', detail: `“${result.application.role_title}” at ${result.application.company_name} is in your Saved applications.` };
+            return { tone: 'success', title: 'Saved to Career Engine.', detail: `“${result.application.role_title}”${result.application.company_name ? ` at ${result.application.company_name}` : ''} is in your Saved applications.` };
         case 'duplicate':
             return {
                 tone: 'warning',

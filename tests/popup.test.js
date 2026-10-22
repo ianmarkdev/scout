@@ -120,13 +120,15 @@ describe('editing and saving', () => {
 
     test('missing required fields are flagged and nothing is sent', async () => {
         const { fetchImpl } = await openPopup({ snapshot: snapshotOf('bare.html', 'https://charity.example.org/jobs/support') });
+        type('title', '');
 
         $('job-form').requestSubmit();
         await flush();
 
         expect(fetchImpl).not.toHaveBeenCalled();
-        expect(document.querySelector('[data-error-for="company"]')?.textContent).toBe('Enter the company name.');
-        expect($('company').getAttribute('aria-invalid')).toBe('true');
+        expect(document.querySelector('[data-error-for="title"]')?.textContent).toBe('Enter the job title.');
+        expect($('title').getAttribute('aria-invalid')).toBe('true');
+        expect($('company').getAttribute('aria-invalid')).not.toBe('true');
         expect(statusText()).toContain('Nothing was sent');
     });
 

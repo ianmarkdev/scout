@@ -56,7 +56,7 @@ Unsaved edits are kept for that page until the browser closes, so closing the po
 
 | Popup field | Career Engine |
 |---|---|
-| Job title, Company | `role_title`, `company_name` (required) |
+| Job title, Company | `role_title` (required), `company_name` (optional) |
 | Location + Workplace | `location`, e.g. "London (hybrid)" |
 | Employment type | `employment_type` |
 | Salary "Saved as" | `salary_text` |

@@ -96,7 +96,6 @@ export function validateForm(form) {
     };
 
     if (form.title.trim() === '') errors.title = 'Enter the job title.';
-    if (form.company.trim() === '') errors.company = 'Enter the company name.';
 
     tooLong('title', 'The job title');
     tooLong('company', 'The company name');
@@ -141,7 +140,7 @@ export function buildPayload(form, { method, capturedAt, allowDuplicate = false 
     const url = orNull(form.url);
 
     return {
-        company_name: form.company.trim(),
+        company_name: orNull(form.company),
         role_title: form.title.trim(),
         source_url: url,
         location: orNull(locationWithWorkplace(form.location, form.workplaceType)),
