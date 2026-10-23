@@ -34,6 +34,13 @@ These changes are committed in `career-engine` as `cd1c313 wip: browser extensio
 
 Web requests behave as before. The full Career Engine suite passed after these changes (355 passed, 2 skipped).
 
+## Follow-up: company name optional for captures
+
+- Migration `2026_10_22_120000_make_job_applications_company_name_nullable.php` makes `job_applications.company_name` nullable. Its `down()` turns nulls into `''`.
+- `CaptureJobApplicationRequest`: `company_name` is nullable (max 200). A blank or whitespace-only company is stored as `null`, and the 201/409 responses return `company_name: null`. **The web form still requires a company**, so editing such an application in Career Engine asks for one.
+- `JobApplication::companyLabel()` returns "Unknown company" when there is none. It is used in the activity feed, the AI analysis prompt and the resume "applied from" note, because prompt rendering needs a string.
+- Frontend: `JobApplication.company_name` is now `string | null`, and the pages show `companyLabel()` from `resources/js/lib/applications.ts` in the tracker, detail, analysis, questions, resume and stage select.
+
 ## Not changed
 
 - No new job table or model. Captures use `job_applications` and `job_postings`.
