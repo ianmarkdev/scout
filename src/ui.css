@@ -122,16 +122,60 @@ button {
     background: var(--surface);
     color: var(--text);
 }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+button.primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+    font-weight: 600;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+button.primary[data-state="saving"] { opacity: 0.85; }
+button.primary[data-state="saved"] { background: var(--success-border); border-color: var(--success-border); opacity: 1; cursor: default; }
+
+.spinner {
+    display: none;
+    width: 12px;
+    height: 12px;
+    flex: none;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+}
+button[data-state="saving"] .spinner { display: inline-block; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes appear { from { opacity: 0; transform: translateY(4px); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .spinner, .status[data-tone="busy"] .status-title::before { animation-duration: 2s; }
+    .status.appear { animation: none; }
+}
 button.small { padding: 4px 8px; font-size: 12px; }
 button:disabled { opacity: 0.6; cursor: progress; }
 .link-button { background: none; border: none; color: var(--accent); padding: 4px; text-decoration: underline; }
 
-.actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.actions { display: flex; justify-content: space-between; gap: 8px; }
 .actions .primary { flex: 1; }
 .hint { color: var(--muted); font-size: 11px; margin: 6px 0 0; text-align: center; }
 
+/* Save stays in reach at the bottom of a long form, with its outcome shown right above it. */
+.footer {
+    position: sticky;
+    bottom: 0;
+    margin: 6px -14px -14px;
+    padding: 10px 14px 12px;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+}
+.footer .status { max-height: 45vh; overflow-y: auto; margin-bottom: 10px; }
+
 .status {
+    position: relative;
     border: 1px solid var(--border);
     border-left-width: 4px;
     border-radius: 6px;
@@ -139,10 +183,54 @@ button:disabled { opacity: 0.6; cursor: progress; }
     margin-bottom: 12px;
     background: var(--surface);
 }
+.status.appear { animation: appear 0.18s ease-out; }
 .status[data-tone="success"] { background: var(--success-bg); border-color: var(--success-border); }
 .status[data-tone="warning"] { background: var(--warning-bg); border-color: var(--warning-border); }
 .status[data-tone="error"] { background: var(--error-bg); border-color: var(--error-border); }
-.status-title { margin: 0; font-weight: 600; }
+.status[data-tone="busy"] { border-color: var(--accent); }
+.status-title { margin: 0; padding-right: 20px; font-weight: 600; display: flex; align-items: flex-start; gap: 6px; }
+
+/* One glyph per outcome, so the kind of message reads at a glance, not only by colour. */
+.status-title::before {
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    margin-top: 1px;
+    border-radius: 50%;
+    font-size: 11px;
+    line-height: 1;
+    color: var(--bg);
+}
+.status[data-tone="success"] .status-title::before { content: "\2713"; background: var(--success-border); }
+.status[data-tone="warning"] .status-title::before { content: "!"; background: var(--warning-border); }
+.status[data-tone="error"] .status-title::before { content: "\2715"; background: var(--error-border); }
+.status[data-tone="info"] .status-title::before { content: "i"; background: var(--muted); }
+.status[data-tone="busy"] .status-title::before {
+    content: "";
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--accent);
+    border-right-color: transparent;
+    background: none;
+    animation: spin 0.7s linear infinite;
+}
+
+.status-close {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1;
+}
+.status-close:hover { color: var(--text); }
 .status-detail { margin: 2px 0 0; overflow-wrap: anywhere; }
 .status-detail:empty { display: none; }
 .status-list { margin: 4px 0 0; padding-left: 18px; }

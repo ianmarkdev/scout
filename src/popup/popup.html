@@ -14,6 +14,7 @@
 
     <main>
         <div id="status" class="status" role="status" aria-live="polite" hidden>
+            <button type="button" id="status-close" class="status-close" aria-label="Dismiss" hidden>×</button>
             <p id="status-title" class="status-title"></p>
             <p id="status-detail" class="status-detail"></p>
             <ul id="status-list" class="status-list" hidden></ul>
@@ -146,11 +147,16 @@
                 <p class="field-error" data-error-for="description"></p>
             </div>
 
-            <div class="actions">
-                <button type="button" id="reextract" class="secondary">Re-extract</button>
-                <button type="submit" id="save" class="primary">Save to Career Engine</button>
+            <div id="form-footer" class="footer">
+                <div class="actions">
+                    <button type="button" id="reextract" class="secondary">Re-extract</button>
+                    <button type="submit" id="save" class="primary" data-state="ready">
+                        <span class="spinner" aria-hidden="true"></span>
+                        <span id="save-label">Save to Career Engine</span>
+                    </button>
+                </div>
+                <p class="hint">Nothing is sent until you press Save.</p>
             </div>
-            <p class="hint">Nothing is sent until you press Save.</p>
         </form>
     </main>
 

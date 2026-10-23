@@ -36,6 +36,7 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
     const form = /** @type {HTMLFormElement} */ ($('job-form'));
     const saveButton = /** @type {HTMLButtonElement} */ ($('save'));
     const reextractButton = /** @type {HTMLButtonElement} */ ($('reextract'));
+    const saveAnywayButton = /** @type {HTMLButtonElement} */ ($('save-anyway'));
     const inputs = /** @type {Record<string, HTMLInputElement>} */ (Object.fromEntries(
         Object.keys(emptyForm()).map((name) => [name, form.elements.namedItem(name)]),
     ));
@@ -82,14 +83,27 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
     }
 
     /**
-     * @param {'success' | 'warning' | 'error' | 'info'} tone
+     * Shows one message. Messages about saving appear in the sticky footer, next to the Save
+     * button the user just pressed; messages about the page appear above the form.
+     *
+     * @param {'success' | 'warning' | 'error' | 'info' | 'busy'} tone
      * @param {string} title
      * @param {string} [detail]
-     * @param {{ link?: string, linkText?: string, saveAnyway?: boolean, settings?: boolean, list?: string[] }} [extras]
+     * @param {{ link?: string, linkText?: string, saveAnyway?: boolean, settings?: boolean, list?: string[], nearSave?: boolean }} [extras]
      */
     function showStatus(tone, title, detail = '', extras = {}) {
         const status = $('status');
+
+        if (extras.nearSave) {
+            $('form-footer').prepend(status);
+        } else if (status.parentElement !== form.parentElement) {
+            form.parentElement?.prepend(status);
+        }
+
         status.dataset.tone = tone;
+        // Errors interrupt (role=alert); everything else is announced politely.
+        status.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+        $('status-close').hidden = tone === 'busy';
         $('status-title').textContent = title;
         $('status-detail').textContent = detail;
 
@@ -103,13 +117,36 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
 
         if (extras.link) link.href = extras.link; else link.removeAttribute('href');
 
-        $('save-anyway').hidden = !extras.saveAnyway;
+        saveAnywayButton.hidden = !extras.saveAnyway;
         $('status-settings').hidden = !extras.settings;
         status.hidden = false;
+
+        // Replay the entrance so the same message shown twice still visibly changes.
+        status.classList.remove('appear');
+        void status.offsetWidth;
+        status.classList.add('appear');
+        status.scrollIntoView?.({ block: 'nearest' });
     }
 
     function hideStatus() {
         $('status').hidden = true;
+    }
+
+    /**
+     * The Save button: `ready`; `saving` (spinner, and nothing else that saves or replaces the
+     * form can be pressed); or `saved` (until the form is edited again, so a second click cannot
+     * save a copy by accident).
+     *
+     * @param {'ready' | 'saving' | 'saved'} mode
+     */
+    function setSaveState(mode) {
+        state.saving = mode === 'saving';
+        saveButton.dataset.state = mode;
+        saveButton.disabled = mode !== 'ready';
+        saveButton.setAttribute('aria-busy', String(state.saving));
+        saveAnywayButton.disabled = state.saving;
+        reextractButton.disabled = state.saving;
+        $('save-label').textContent = { ready: 'Save to Career Engine', saving: 'Saving…', saved: 'Saved ✓' }[mode];
     }
 
     /**
@@ -161,6 +198,7 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
 
     async function extract() {
         hideStatus();
+        setSaveState('ready');
         resetDiscardConfirmation();
         $('method-line').textContent = 'Reading the page…';
         $('extraction').hidden = false;
@@ -218,46 +256,49 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
         setFieldErrors(errors);
 
         if (Object.keys(errors).length > 0) {
-            showStatus('error', 'Check the highlighted fields.', 'Nothing was sent.');
+            showStatus('error', 'Check the highlighted fields.', 'Nothing was sent.', { nearSave: true });
             inputs[Object.keys(errors)[0]]?.focus();
 
             return null;
         }
 
-        const settings = await loadSettings(chromeApi.storage.local);
+        // Respond to the click at once; the checks below and the request can take a moment.
+        setSaveState('saving');
+        showStatus('busy', allowDuplicate ? 'Saving a copy to Career Engine…' : 'Saving to Career Engine…', 'Keep this popup open until it finishes.', { nearSave: true });
 
-        if (settings.baseUrl === '' || settings.token === '') {
-            showStatus('error', 'Connect to Career Engine first.', 'Add the app address and an API token in Settings. Your edits are kept.', { settings: true });
-
-            return null;
-        }
-
-        const origin = new URL(settings.baseUrl).origin;
-
-        if (!(await chromeApi.permissions.contains({ origins: [`${origin}/*`] }))) {
-            showStatus('error', `Career Clipper may not contact ${origin} yet.`, 'Open Settings and press “Save and allow access”. Your edits are kept.', { settings: true });
-
-            return null;
-        }
-
-        state.saving = true;
-        saveButton.disabled = true;
-        saveButton.textContent = 'Saving…';
-
-        /** @type {import('../lib/api.js').SaveResult} */
-        let result;
+        /** @type {import('../lib/api.js').SaveResult | null} */
+        let result = null;
+        let settings;
 
         try {
+            settings = await loadSettings(chromeApi.storage.local);
+
+            if (settings.baseUrl === '' || settings.token === '') {
+                showStatus('error', 'Connect to Career Engine first.', 'Add the app address and an API token in Settings. Your edits are kept.', { settings: true, nearSave: true });
+
+                return null;
+            }
+
+            const origin = new URL(settings.baseUrl).origin;
+
+            if (!(await chromeApi.permissions.contains({ origins: [`${origin}/*`] }))) {
+                showStatus('error', `Career Clipper may not contact ${origin} yet.`, 'Open Settings and press “Save and allow access”. Your edits are kept.', { settings: true, nearSave: true });
+
+                return null;
+            }
+
             result = await saveApplication({
                 baseUrl: settings.baseUrl,
                 token: settings.token,
                 payload: buildPayload(values, { method: state.method, capturedAt: now().toISOString(), allowDuplicate }),
                 fetchImpl,
             });
+        } catch (error) {
+            showStatus('error', 'Could not save.', `${error instanceof Error ? error.message : String(error)}. Your edits are kept.`, { settings: true, nearSave: true });
+
+            return null;
         } finally {
-            state.saving = false;
-            saveButton.disabled = false;
-            saveButton.textContent = 'Save to Career Engine';
+            setSaveState(result?.kind === 'created' ? 'saved' : 'ready');
         }
 
         state.lastResult = result;
@@ -266,9 +307,9 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
         if (result.kind === 'created') {
             state.dirty = false;
             await clearDraft(chromeApi.storage.session, state.pageUrl).catch(() => {});
-            showStatus('success', message.title, message.detail, { link: safeAppLink(result.application.url, settings.baseUrl) });
+            showStatus('success', message.title, message.detail, { link: safeAppLink(result.application.url, settings.baseUrl), nearSave: true });
         } else if (result.kind === 'duplicate') {
-            showStatus('warning', message.title, message.detail, { link: safeAppLink(result.existing?.url, settings.baseUrl), linkText: 'Open the saved one', saveAnyway: true });
+            showStatus('warning', message.title, message.detail, { link: safeAppLink(result.existing?.url, settings.baseUrl), linkText: 'Open the saved one', saveAnyway: true, nearSave: true });
         } else if (result.kind === 'validation') {
             /** @type {Record<string, string>} */
             const fieldErrors = {};
@@ -282,9 +323,9 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
             }
 
             setFieldErrors(fieldErrors);
-            showStatus('error', message.title, other.length ? '' : message.detail, { list: other });
+            showStatus('error', message.title, other.length ? '' : message.detail, { list: other, nearSave: true });
         } else {
-            showStatus(message.tone, message.title, message.detail, { settings: result.kind === 'unauthenticated' || result.kind === 'not_found' || result.kind === 'network' });
+            showStatus(message.tone, message.title, message.detail, { settings: result.kind === 'unauthenticated' || result.kind === 'not_found' || result.kind === 'network', nearSave: true });
         }
 
         return result;
@@ -347,6 +388,8 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
             inputs[name]?.removeAttribute('aria-invalid');
         }
 
+        if (saveButton.dataset.state === 'saved') setSaveState('ready');
+
         void persistDraft();
     });
 
@@ -357,7 +400,8 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
         void save(false);
     });
 
-    $('save-anyway').addEventListener('click', () => void save(true));
+    saveAnywayButton.addEventListener('click', () => void save(true));
+    $('status-close').addEventListener('click', hideStatus);
 
     reextractButton.addEventListener('click', async () => {
         if (state.dirty && !state.confirmDiscard) {
@@ -374,6 +418,7 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
     $('use-selection').addEventListener('click', () => {
         inputs.description.value = state.selection;
         state.dirty = true;
+        if (saveButton.dataset.state === 'saved') setSaveState('ready');
         updateCount();
         void persistDraft();
     });

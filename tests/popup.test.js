@@ -267,6 +267,105 @@ describe('save outcomes', () => {
         expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
 
+    test('the click responds at once: spinner, busy notice next to Save, nothing else pressable', async () => {
+        let resolve = (/** @type {Response} */ _) => {};
+        const fetchImpl = vi.fn(() => new Promise((r) => { resolve = r; }));
+        await openPopup({}, /** @type {any} */ (fetchImpl));
+
+        $('job-form').requestSubmit();
+
+        // Before any await has settled.
+        expect($('save').dataset.state).toBe('saving');
+        expect($('save').disabled).toBe(true);
+        expect($('save').getAttribute('aria-busy')).toBe('true');
+        expect($('save-label').textContent).toBe('Saving…');
+        expect($('reextract').disabled).toBe(true);
+        expect($('status').dataset.tone).toBe('busy');
+        expect($('status').parentElement?.id).toBe('form-footer');
+        expect($('status-close').hidden).toBe(true);
+
+        await flush();
+        resolve(new Response(JSON.stringify(created), { status: 201 }));
+        await flush();
+        await flush();
+
+        expect($('status').dataset.tone).toBe('success');
+        expect($('status').parentElement?.id).toBe('form-footer');
+        expect($('reextract').disabled).toBe(false);
+    });
+
+    test('after a save the button says Saved until the form is edited', async () => {
+        await openPopup();
+
+        $('job-form').requestSubmit();
+        await flush();
+
+        expect($('save').dataset.state).toBe('saved');
+        expect($('save').disabled).toBe(true);
+        expect($('save-label').textContent).toBe('Saved ✓');
+
+        type('title', 'Changed');
+
+        expect($('save').dataset.state).toBe('ready');
+        expect($('save').disabled).toBe(false);
+        expect($('save-label').textContent).toBe('Save to Career Engine');
+    });
+
+    test('saving a copy after a duplicate shows its own busy notice and locks the button', async () => {
+        const existing = { ...created.data, ulid: '01OLD', url: `${base}/applications/01OLD` };
+        let resolve = (/** @type {Response} */ _) => {};
+        const fetchImpl = vi.fn()
+            .mockResolvedValueOnce(new Response(JSON.stringify({ message: 'This job listing has already been saved.', existing }), { status: 409 }))
+            .mockImplementationOnce(() => new Promise((r) => { resolve = r; }));
+        await openPopup({}, fetchImpl);
+
+        $('job-form').requestSubmit();
+        await flush();
+        expect($('save').dataset.state).toBe('ready');
+
+        $('save-anyway').click();
+
+        expect($('status-title').textContent).toBe('Saving a copy to Career Engine…');
+        expect($('save-anyway').hidden).toBe(true);
+
+        await flush();
+        resolve(new Response(JSON.stringify(created), { status: 201 }));
+        await flush();
+        await flush();
+
+        expect($('status').dataset.tone).toBe('success');
+    });
+
+    test('errors are announced as alerts and can be dismissed', async () => {
+        await openPopup({}, jsonFetch(500, 'oops'));
+
+        $('job-form').requestSubmit();
+        await flush();
+
+        expect($('status').getAttribute('role')).toBe('alert');
+        expect($('status-close').hidden).toBe(false);
+
+        $('status-close').click();
+        expect($('status').hidden).toBe(true);
+    });
+
+    test('page messages go back above the form', async () => {
+        const { chromeApi } = await openPopup({}, jsonFetch(500, 'oops'));
+
+        $('job-form').requestSubmit();
+        await flush();
+        expect($('status').parentElement?.id).toBe('form-footer');
+
+        chromeApi.scripting.executeScript.mockRejectedValueOnce(new Error('The tab was closed'));
+        $('reextract').click();
+        await flush();
+        await flush();
+
+        expect(statusText()).toContain('The tab was closed');
+        expect($('status').nextElementSibling?.id).toBe('extraction');
+        expect($('save').dataset.state).toBe('ready');
+    });
+
     test('page content is shown as text, never as HTML', async () => {
         const html = '<html><head><title>x</title><script type="application/ld+json">{"@type":"JobPosting","title":"<img src=x onerror=alert(1)>Evil","hiringOrganization":"<b>Bold</b> Co"}</script></head><body></body></html>';
         await openPopup({ snapshot: { url: 'https://jobs.example.com/1', title: 'x', html } });
