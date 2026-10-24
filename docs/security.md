@@ -4,12 +4,14 @@
 
 | Permission | Why |
 |---|---|
-| `activeTab` | Temporary access to the tab you are on, granted only when you click the extension icon. There is no access to any site otherwise. |
+| `activeTab` | Temporary access to the tab you are on, granted only when you click the extension icon. Without the opt-in below, there is no access to any other site. |
 | `scripting` | Runs `snapshotPage()` in that tab after your click. |
-| `storage` | Settings in `chrome.storage.local`, unsaved popup edits in `chrome.storage.session`. |
+| `storage` | Settings in `chrome.storage.local`, unsaved panel edits in `chrome.storage.session`. |
+| `sidePanel` | Shows the extension in the browser's side panel instead of a popup. |
 | `optional_host_permissions: http://*/*, https://*/*` | Declared so the extension can **ask** for access to your Career Engine address. Only that one origin is requested (`<origin>/*`) when you save Settings, and access to a previous address is removed. No site is granted at install. |
+| Opt-in: `http://*/*, https://*/*` | Requested only when you press **Allow on all websites** in the panel, so it can read whichever tab is active. The page is still read only while the panel is open and is never sent until you press Save. Remove it under the extension's **Site access** in `chrome://extensions`. |
 
-There are no content scripts declared in the manifest, no background service worker, no remote code, no `eval`, and no third-party runtime libraries. The extension pages' CSP is `script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`.
+There are no content scripts declared in the manifest, and the background service worker only sets the side panel to open on the icon click. There is no remote code, no `eval`, and no third-party runtime libraries. The extension pages' CSP is `script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`.
 
 ## What is read from a page
 

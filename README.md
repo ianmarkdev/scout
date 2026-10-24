@@ -21,7 +21,7 @@ A Chrome extension (Manifest V3, plain JavaScript modules, no build step) that s
 3. Click **Load unpacked** and choose this folder (`career-cliper/`, the one with `manifest.json`).
 4. Pin **Career Clipper** from the puzzle-piece menu if you want it in the toolbar.
 
-After you change the code, press the reload icon on the extension's card. Reopen the popup to see popup changes.
+After you change the code, press the reload icon on the extension's card, then close and reopen the side panel.
 
 ## Connect it to Career Engine
 
@@ -43,14 +43,16 @@ After you change the code, press the reload icon on the extension's card. Reopen
 ## Capture a job
 
 1. Open a job listing.
-2. Click the Career Clipper icon. The popup reads the page and fills in the form. Small badges show where each value came from: `JSON-LD`, `meta`, `page`, or `guess`.
-3. Check and correct the details. Fields that could not be found are listed and left empty, never guessed. If only a teaser description was found, select the full description on the page, reopen the popup, and press **Use selected text as description**.
+2. Click the Career Clipper icon. It opens in the browser's side panel (Chrome 116 or later), reads the page and fills in the form. The panel stays open as you switch tabs and reads each job tab you move to; drag its edge to make it wider. Small badges show where each value came from: `JSON-LD`, `meta`, `page`, or `guess`.
+3. Check and correct the details. Fields that could not be found are listed and left empty, never guessed. If only a teaser description was found, select the full description on the page, press **Re-extract**, and then **Use selected text as description**.
 4. Press **Save to Career Engine**. Possible outcomes:
    - **Saved**: there's a link to the new application.
    - **Already saved**: a link to the existing application, which is unchanged. **Save a copy anyway** creates a second application.
-   - **Validation, authentication, network or server errors**: these are explained in the popup, and your edits stay in the form.
+   - **Validation, authentication, network or server errors**: these are explained in the panel, and your edits stay in the form.
 
-Unsaved edits are kept for that page until the browser closes, so closing the popup by accident loses nothing. **Re-extract** asks before throwing your edits away.
+Unsaved edits are kept per page until the browser closes, so switching tab or closing the panel loses nothing.
+
+By default the panel can read only the tab you clicked the icon on. When you switch to another tab, it offers **Allow on all websites**, a one-time opt-in that lets it read whichever tab is active. Without it, click the icon again on each listing. **Re-extract** asks before throwing your edits away.
 
 ### What gets saved where
 
@@ -107,8 +109,9 @@ The Laravel side is tested in Career Engine (`php artisan test tests/Feature/Api
 ## Files
 
 ```
-manifest.json           MV3 manifest (activeTab, scripting, storage; host access requested at runtime)
-src/popup/              popup UI and controller
+manifest.json           MV3 manifest (activeTab, scripting, storage, sidePanel; host access requested at runtime)
+src/background.js       opens the side panel when the icon is clicked
+src/popup/              side panel UI and controller
 src/options/            settings page
 src/content/snapshot.js the only code that runs in the job page
 src/extract/            extraction layers and adapter registry

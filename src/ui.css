@@ -46,7 +46,8 @@ body {
     font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-body.popup { width: 420px; }
+/* The side panel is as wide as the user drags it. */
+body.panel { min-width: 300px; }
 body.options { max-width: 640px; margin: 0 auto; padding: 24px 16px; font-size: 14px; }
 
 h1 { font-size: 15px; margin: 0; }

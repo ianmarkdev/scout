@@ -389,3 +389,86 @@ describe('save outcomes', () => {
         expect(document.querySelector('img')).toBeNull();
     });
 });
+
+describe('side panel', () => {
+    test('follows the active tab and keeps each tab\'s unsaved edits', async () => {
+        const { chromeApi } = await openPopup({ otherTabs: { 8: { url: 'https://jobs.example.com/other/9' } } });
+        type('company', 'Edited Co');
+        await flush();
+
+        chromeApi.activate(8);
+        await flush();
+
+        expect(chromeApi.scripting.executeScript).toHaveBeenLastCalledWith(expect.objectContaining({ target: { tabId: 8 } }));
+        expect($('company').value).toBe('Northwind Payments');
+
+        chromeApi.activate(7);
+        await flush();
+
+        expect($('company').value).toBe('Edited Co');
+        expect($('method-line').textContent).toContain('Restored your unsaved edits');
+        expect(chromeApi.scripting.executeScript).toHaveBeenCalledTimes(2);
+    });
+
+    test('reads the tab again when it moves to another page', async () => {
+        const { chromeApi } = await openPopup();
+        const url = 'https://jobs.example.com/northwind/456';
+        chromeApi.setTab(7, { url });
+
+        chromeApi.tabs.onUpdated.fire(7, { url }, { id: 7, windowId: 1, active: true, url });
+        await flush();
+
+        expect(chromeApi.scripting.executeScript).toHaveBeenCalledTimes(2);
+    });
+
+    test('tabs in other windows are ignored', async () => {
+        const { chromeApi } = await openPopup({ otherTabs: { 9: { url: 'https://jobs.example.com/x', windowId: 2 } } });
+
+        chromeApi.activate(9);
+        await flush();
+
+        expect(chromeApi.scripting.executeScript).toHaveBeenCalledTimes(1);
+        expect($('job-form').hidden).toBe(false);
+    });
+
+    test('a tab it may not read offers access to all websites, and reads it once allowed', async () => {
+        const { chromeApi } = await openPopup({ allSites: false, otherTabs: { 8: {} } });
+
+        chromeApi.activate(8);
+        await flush();
+
+        expect(statusText()).toContain('cannot read this tab yet');
+        expect($('allow-sites').hidden).toBe(false);
+        expect($('job-form').hidden).toBe(true);
+        expect(chromeApi.scripting.executeScript).toHaveBeenCalledTimes(1);
+
+        chromeApi.setTab(8, { url: 'https://jobs.example.com/other/9' }); // Chrome shows the address once allowed
+        $('allow-sites').click();
+        await flush();
+
+        expect(chromeApi.permissions.request).toHaveBeenCalledWith({ origins: ['http://*/*', 'https://*/*'] });
+        expect(chromeApi.scripting.executeScript).toHaveBeenLastCalledWith(expect.objectContaining({ target: { tabId: 8 } }));
+        expect($('job-form').hidden).toBe(false);
+        expect($('status').hidden).toBe(true);
+    });
+
+    test('a tab switch during a save waits until the save has finished', async () => {
+        /** @type {(response: Response) => void} */
+        let respond = () => {};
+        const fetchImpl = vi.fn(() => new Promise((resolve) => { respond = resolve; }));
+        const { chromeApi } = await openPopup({ otherTabs: { 8: { url: 'https://jobs.example.com/other/9' } } }, /** @type {any} */ (fetchImpl));
+
+        $('job-form').requestSubmit();
+        await flush();
+        chromeApi.activate(8);
+        await flush();
+
+        expect(chromeApi.scripting.executeScript).toHaveBeenCalledTimes(1);
+
+        respond(new Response(JSON.stringify(created), { status: 201, headers: { 'Content-Type': 'application/json' } }));
+        await flush();
+        await flush();
+
+        expect(chromeApi.scripting.executeScript).toHaveBeenLastCalledWith(expect.objectContaining({ target: { tabId: 8 } }));
+    });
+});

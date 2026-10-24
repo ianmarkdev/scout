@@ -1,8 +1,12 @@
 /**
- * The popup: reads the active tab when opened (only because the user clicked the extension),
- * shows what was found in an editable form, and sends it to Career Engine only when the user
- * presses Save. Unsaved edits are kept per page in session storage, so closing the popup by
- * accident loses nothing.
+ * The side panel: reads the active tab when opened (only because the user clicked the extension)
+ * and again whenever the user switches tab or the tab moves to another page, shows what was
+ * found in an editable form, and sends it to Career Engine only when the user presses Save.
+ * Unsaved edits are kept per page in session storage, so switching tab or closing the panel
+ * loses nothing.
+ *
+ * Without the opt-in "all websites" access, only the tab the icon was clicked on can be read;
+ * other tabs show a button that asks for it.
  */
 
 import { snapshotPage } from '../content/snapshot.js';
@@ -28,6 +32,9 @@ const SOURCE_TARGETS = {
 
 const SALARY_FIELDS = new Set(['salaryMin', 'salaryMax', 'salaryCurrency', 'salaryPeriod']);
 
+/** The optional host access that lets the panel read whichever tab is active. */
+export const ALL_SITES = ['http://*/*', 'https://*/*'];
+
 /**
  * @param {{ doc?: Document, chromeApi?: typeof chrome, fetchImpl?: typeof fetch, now?: () => Date }} [options]
  */
@@ -42,8 +49,12 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
     ));
 
     const state = {
+        windowId: /** @type {number | null} */ (null),
         tabId: /** @type {number | null} */ (null),
         pageUrl: '',
+        /** Bumped on every tab change, so a slow read of the previous tab is dropped. */
+        generation: 0,
+        pendingTab: /** @type {chrome.tabs.Tab | null} */ (null),
         method: 'manual',
         selection: '',
         dirty: false,
@@ -89,7 +100,7 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
      * @param {'success' | 'warning' | 'error' | 'info' | 'busy'} tone
      * @param {string} title
      * @param {string} [detail]
-     * @param {{ link?: string, linkText?: string, saveAnyway?: boolean, settings?: boolean, list?: string[], nearSave?: boolean }} [extras]
+     * @param {{ link?: string, linkText?: string, saveAnyway?: boolean, settings?: boolean, allowSites?: boolean, list?: string[], nearSave?: boolean }} [extras]
      */
     function showStatus(tone, title, detail = '', extras = {}) {
         const status = $('status');
@@ -119,6 +130,7 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
 
         saveAnywayButton.hidden = !extras.saveAnyway;
         $('status-settings').hidden = !extras.settings;
+        $('allow-sites').hidden = !extras.allowSites;
         status.hidden = false;
 
         // Replay the entrance so the same message shown twice still visibly changes.
@@ -197,6 +209,7 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
     }
 
     async function extract() {
+        const generation = state.generation;
         hideStatus();
         setSaveState('ready');
         resetDiscardConfirmation();
@@ -213,6 +226,14 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
                 throw new Error('The page returned nothing');
             }
         } catch (error) {
+            if (generation !== state.generation) return;
+
+            if (/permission|cannot access/i.test(String(error)) && !(await hasAllSites())) {
+                showNeedsAccess();
+
+                return;
+            }
+
             state.method = 'manual';
             state.selection = '';
             writeForm({ url: state.pageUrl, source: siteOf(state.pageUrl) });
@@ -221,6 +242,8 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
 
             return;
         }
+
+        if (generation !== state.generation) return;
 
         let extraction;
 
@@ -300,6 +323,12 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
             return null;
         } finally {
             setSaveState(result?.kind === 'created' ? 'saved' : 'ready');
+
+            if (state.pendingTab) {
+                const tab = state.pendingTab;
+                state.pendingTab = null;
+                void showTab(tab);
+            }
         }
 
         state.lastResult = result;
@@ -332,30 +361,51 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
         return result;
     }
 
-    async function init() {
-        let tab;
+    const hasAllSites = () => chromeApi.permissions.contains({ origins: ALL_SITES }).catch(() => false);
 
-        try {
-            [tab] = await chromeApi.tabs.query({ active: true, currentWindow: true });
-        } catch (error) {
-            showStatus('error', 'Could not find the current tab.', error instanceof Error ? error.message : String(error));
+    function showNeedsAccess() {
+        form.hidden = true;
+        $('extraction').hidden = true;
+        showStatus('info', 'Career Clipper cannot read this tab yet.', 'It can read the tab you clicked its icon on. To read every tab you switch to, allow it on all websites. It still reads a page only while this panel is open, and sends nothing until you press Save.', { allowSites: true });
+    }
+
+    /**
+     * Point the panel at a tab: restore its unsaved edits, or read it.
+     * @param {chrome.tabs.Tab | undefined} tab
+     */
+    async function showTab(tab) {
+        state.generation += 1;
+        state.tabId = null;
+        state.pageUrl = '';
+        state.dirty = false;
+        state.lastResult = null;
+        setSaveState('ready');
+        resetDiscardConfirmation();
+        hideStatus();
+
+        if (tab && typeof tab.id === 'number' && tab.url === undefined && !(await hasAllSites())) {
+            // Chrome hides the address of a tab the extension has no access to.
+            showNeedsAccess();
 
             return;
         }
 
         if (!tab || typeof tab.id !== 'number' || !httpUrl(tab.url)) {
+            form.hidden = true;
+            $('extraction').hidden = true;
             showStatus('error', 'Open a job listing first.', 'Career Clipper reads ordinary web pages (http or https). It cannot read browser pages, the Chrome Web Store or local files.');
 
             return;
         }
 
+        const generation = state.generation;
         state.tabId = tab.id;
         state.pageUrl = /** @type {string} */ (tab.url);
         form.hidden = false;
 
-        const settings = await loadSettings(chromeApi.storage.local);
-
         const draft = await loadDraft(chromeApi.storage.session, state.pageUrl).catch(() => null);
+
+        if (generation !== state.generation) return;
 
         if (draft) {
             state.method = draft.method;
@@ -365,11 +415,69 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
         } else {
             await extract();
         }
+    }
+
+    /** Follow the active tab of this window; a change during a save waits for it to finish. */
+    function followTab(/** @type {chrome.tabs.Tab} */ tab) {
+        if (tab.windowId !== state.windowId) return;
+
+        if (state.saving) {
+            state.pendingTab = tab;
+        } else {
+            void showTab(tab);
+        }
+    }
+
+    async function currentTab() {
+        const [tab] = await chromeApi.tabs.query({ active: true, currentWindow: true });
+
+        return tab;
+    }
+
+    async function init() {
+        let tab;
+
+        try {
+            tab = await currentTab();
+        } catch (error) {
+            showStatus('error', 'Could not find the current tab.', error instanceof Error ? error.message : String(error));
+
+            return;
+        }
+
+        state.windowId = tab?.windowId ?? null;
+        await showTab(tab);
+
+        const settings = await loadSettings(chromeApi.storage.local);
 
         if (settings.baseUrl === '' || settings.token === '') {
             showStatus('info', 'Not connected yet.', 'You can review the job now. Add the Career Engine address and API token in Settings before saving.', { settings: true });
         }
     }
+
+    chromeApi.tabs.onActivated?.addListener(({ tabId, windowId }) => {
+        if (windowId !== state.windowId) return;
+
+        chromeApi.tabs.get(tabId).then(followTab, () => {});
+    });
+
+    chromeApi.tabs.onUpdated?.addListener((tabId, changeInfo, tab) => {
+        // A new page in the tab being shown, including single-page sites changing the address.
+        if (!tab.active || (changeInfo.url === undefined && changeInfo.status !== 'complete')) return;
+        if (tabId === state.tabId && tab.url === state.pageUrl) return;
+
+        followTab(tab);
+    });
+
+    $('allow-sites').addEventListener('click', async () => {
+        const granted = await chromeApi.permissions.request({ origins: ALL_SITES }).catch(() => false);
+
+        if (granted) {
+            await showTab(await currentTab().catch(() => undefined));
+        } else {
+            showStatus('info', 'Access was not given.', 'Click the Career Clipper icon while on a job listing to read just that tab.');
+        }
+    });
 
     form.addEventListener('input', (event) => {
         const name = /** @type {HTMLInputElement} */ (event.target).name;

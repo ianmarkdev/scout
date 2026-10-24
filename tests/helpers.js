@@ -37,9 +37,39 @@ export function fakeChrome({
     executeError = /** @type {Error | null} */ (null),
     settings = /** @type {any} */ ({ baseUrl: 'http://127.0.0.1:8000', token: `1|${'a'.repeat(40)}` }),
     granted = true,
+    allSites = true,
+    otherTabs = /** @type {Record<number, { url?: string, windowId?: number }>} */ ({}),
 } = {}) {
-    return {
-        tabs: { query: vi.fn(async () => [{ id: 7, url: tabUrl }]) },
+    /** @type {Record<number, any>} */
+    const tabs = { 7: { id: 7, windowId: 1, url: tabUrl } };
+    let activeId = 7;
+    const access = { allSites };
+    const event = () => {
+        const listeners = /** @type {Function[]} */ ([]);
+
+        return { addListener: (/** @type {Function} */ fn) => listeners.push(fn), fire: (/** @type {any[]} */ ...args) => listeners.forEach((fn) => fn(...args)) };
+    };
+
+    for (const [id, tab] of Object.entries(otherTabs)) {
+        tabs[Number(id)] = { id: Number(id), windowId: 1, ...tab };
+    }
+
+    const chromeApi = {
+        tabs: {
+            query: vi.fn(async () => [{ ...tabs[activeId], active: true }]),
+            get: vi.fn(async (/** @type {number} */ id) => ({ ...tabs[id], active: id === activeId })),
+            onActivated: event(),
+            onUpdated: event(),
+        },
+        /** Switch to another tab, as the user would. */
+        activate(/** @type {number} */ id, windowId = tabs[id]?.windowId ?? 1) {
+            if (windowId === 1) activeId = id;
+            chromeApi.tabs.onActivated.fire({ tabId: id, windowId });
+        },
+        /** Change what a tab shows, e.g. after navigating or once access is granted. */
+        setTab(/** @type {number} */ id, /** @type {{ url?: string, windowId?: number }} */ tab) {
+            tabs[id] = { id, windowId: 1, ...tab };
+        },
         scripting: {
             executeScript: vi.fn(async () => {
                 if (executeError) throw executeError;
@@ -49,12 +79,18 @@ export function fakeChrome({
         },
         storage: { local: memoryArea(settings ? { settings } : {}), session: memoryArea() },
         permissions: {
-            contains: vi.fn(async () => granted),
-            request: vi.fn(async () => granted),
+            contains: vi.fn(async (/** @type {{ origins: string[] }} */ { origins }) => (origins.includes('https://*/*') ? access.allSites : granted)),
+            request: vi.fn(async (/** @type {{ origins: string[] }} */ { origins }) => {
+                if (origins.includes('https://*/*')) access.allSites = granted;
+
+                return granted;
+            }),
             remove: vi.fn(async () => true),
         },
         runtime: { openOptionsPage: vi.fn(async () => {}) },
     };
+
+    return chromeApi;
 }
 
 /**
