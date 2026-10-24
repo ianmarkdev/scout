@@ -36,6 +36,9 @@ describe('showing the extracted job', () => {
         expect($('employmentType').value).toBe('full_time');
         expect($('salaryText').value).toBe('GBP 70,000–85,000 / year');
         expect($('deadline').value).toBe('2026-11-30');
+        expect($('source').value).toBe('jobs.example.com');
+        expect($('proposalAngle').value).toBe('');
+        expect($('notes').value).toBe('');
         expect($('description').value).toContain('- 5+ years of PHP');
         expect($('description-count').textContent).toContain('/ 50,000 characters');
         expect($('method-line').textContent).toContain('structured data (JSON-LD)');
@@ -98,6 +101,9 @@ describe('editing and saving', () => {
 
         type('title', 'Lead Backend Engineer');
         type('salaryMin', '75000');
+        type('source', 'LinkedIn');
+        type('proposalAngle', 'Payments scale-up experience');
+        type('notes', 'Ask about visa.');
         expect($('salaryText').value).toBe('GBP 75,000–85,000 / year');
         expect(fetchImpl).not.toHaveBeenCalled();
 
@@ -110,6 +116,9 @@ describe('editing and saving', () => {
             role_title: 'Lead Backend Engineer',
             company_name: 'Northwind Payments',
             salary_text: 'GBP 75,000–85,000 / year',
+            source: 'LinkedIn',
+            proposal_angle: 'Payments scale-up experience',
+            notes: 'Ask about visa.',
             capture: { method: 'json-ld', external_id: 'REQ-123', salary: { min: 75000, max: 85000, currency: 'GBP', period: 'year' }, captured_at: '2026-10-22T10:00:00.000Z' },
             allow_duplicate: false,
         });

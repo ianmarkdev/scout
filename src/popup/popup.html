@@ -135,9 +135,9 @@
             </div>
 
             <div class="field">
-                <label for="externalId">Listing ID / reference <span class="source" data-source-for="externalId"></span></label>
-                <input id="externalId" name="externalId" type="text" maxlength="400" autocomplete="off">
-                <p class="field-error" data-error-for="externalId"></p>
+                <label for="source">Source / job platform</label>
+                <input id="source" name="source" type="text" maxlength="400" placeholder="e.g. linkedin.com" autocomplete="off">
+                <p class="field-error" data-error-for="source"></p>
             </div>
 
             <div class="field">
@@ -145,6 +145,24 @@
                 <textarea id="description" name="description" rows="10" spellcheck="false"></textarea>
                 <p id="description-count" class="count"></p>
                 <p class="field-error" data-error-for="description"></p>
+            </div>
+
+            <div class="field">
+                <label for="proposalAngle">Proposal angle</label>
+                <textarea id="proposalAngle" name="proposalAngle" class="short" rows="3" placeholder="How you will pitch yourself for this role"></textarea>
+                <p class="field-error" data-error-for="proposalAngle"></p>
+            </div>
+
+            <div class="field">
+                <label for="notes">Notes</label>
+                <textarea id="notes" name="notes" class="short" rows="3"></textarea>
+                <p class="field-error" data-error-for="notes"></p>
+            </div>
+
+            <div class="field">
+                <label for="externalId">Listing ID / reference <span class="source" data-source-for="externalId"></span></label>
+                <input id="externalId" name="externalId" type="text" maxlength="400" autocomplete="off">
+                <p class="field-error" data-error-for="externalId"></p>
             </div>
 
             <div id="form-footer" class="footer">

@@ -140,12 +140,13 @@ describe('form', () => {
         expect(validateForm({ ...filled(), salaryMin: '90000', salaryMax: '50000' }).salaryMax).toBeDefined();
         expect(validateForm({ ...filled(), salaryMin: 'lots' }).salaryMin).toBeDefined();
         expect(validateForm({ ...filled(), salaryCurrency: 'pounds' }).salaryCurrency).toBeDefined();
+        expect(validateForm({ ...filled(), notes: 'x'.repeat(10001) }).notes).toBeDefined();
     });
 
     test('builds the API payload without trimming the description content', () => {
         const description = 'Line one.\n\n- item';
         const payload = buildPayload(
-            { ...filled(), description, location: 'London', workplaceType: 'hybrid', salaryMin: '70,000', salaryMax: '85000', salaryCurrency: 'gbp', salaryPeriod: 'year', salaryText: 'GBP 70,000–85,000 / year', employmentType: 'full_time', externalId: ' R-1 ' },
+            { ...filled(), description, location: 'London', workplaceType: 'hybrid', salaryMin: '70,000', salaryMax: '85000', salaryCurrency: 'gbp', salaryPeriod: 'year', salaryText: 'GBP 70,000–85,000 / year', employmentType: 'full_time', externalId: ' R-1 ', source: 'x.example', proposalAngle: ' Lead with payments work ', notes: 'Referral from Sam.' },
             { method: 'json-ld', capturedAt: '2026-10-22T10:00:00.000Z' },
         );
 
@@ -158,6 +159,9 @@ describe('form', () => {
             salary_text: 'GBP 70,000–85,000 / year',
             deadline_on: null,
             job_description: description,
+            source: 'x.example',
+            proposal_angle: 'Lead with payments work',
+            notes: 'Referral from Sam.',
             capture: {
                 method: 'json-ld',
                 site: 'x.example',
@@ -174,7 +178,7 @@ describe('form', () => {
     test('empty optional fields are sent as null', () => {
         const payload = buildPayload({ ...emptyForm(), title: 'T', company: 'C' }, { method: 'manual', capturedAt: 'now', allowDuplicate: true });
 
-        expect(payload).toMatchObject({ source_url: null, location: null, job_description: null, allow_duplicate: true });
+        expect(payload).toMatchObject({ source_url: null, location: null, job_description: null, source: null, proposal_angle: null, notes: null, allow_duplicate: true });
         expect(buildPayload({ ...emptyForm(), title: 'T' }, { method: 'manual', capturedAt: 'now' }).company_name).toBeNull();
         expect(payload.capture.salary).toBeNull();
     });

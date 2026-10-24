@@ -10,7 +10,7 @@ import { METHOD_LABELS, extractJob } from '../extract/index.js';
 import { describeResult, safeAppLink, saveApplication } from '../lib/api.js';
 import { LIMITS, SERVER_FIELD_MAP, buildPayload, emptyForm, formFromExtraction, salaryTextFromFields, validateForm } from '../lib/form.js';
 import { clearDraft, loadDraft, loadSettings, saveDraft } from '../lib/storage.js';
-import { httpUrl } from '../lib/url.js';
+import { httpUrl, siteOf } from '../lib/url.js';
 
 const FIELD_LABELS = {
     title: 'job title', company: 'company', location: 'location', description: 'description',
@@ -215,7 +215,7 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
         } catch (error) {
             state.method = 'manual';
             state.selection = '';
-            writeForm({ url: state.pageUrl });
+            writeForm({ url: state.pageUrl, source: siteOf(state.pageUrl) });
             showExtraction('manual', { note: 'This page could not be read. You can still fill in the form by hand.' });
             showStatus('error', 'Could not read this page.', `${error instanceof Error ? error.message : String(error)}. Some pages cannot be read by extensions (the Chrome Web Store, built-in PDF viewer, other extensions' pages). Reload the page and try again.`);
 
@@ -228,7 +228,7 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
             extraction = extractJob(snapshot);
         } catch (error) {
             state.method = 'manual';
-            writeForm({ url: state.pageUrl });
+            writeForm({ url: state.pageUrl, source: siteOf(state.pageUrl) });
             showExtraction('manual', { note: 'Extraction failed. Fill in the form by hand.' });
             showStatus('error', 'Could not extract the job details.', error instanceof Error ? error.message : String(error));
 
@@ -241,6 +241,7 @@ export function createPopup({ doc = document, chromeApi = chrome, fetchImpl = (.
         writeForm(formFromExtraction(extraction));
 
         if (inputs.url.value === '') inputs.url.value = state.pageUrl;
+        if (inputs.source.value === '') inputs.source.value = siteOf(inputs.url.value);
 
         showExtraction(extraction.method, extraction);
     }

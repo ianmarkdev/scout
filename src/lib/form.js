@@ -8,13 +8,14 @@ import { PAY_PERIODS, formatSalary } from './salary.js';
 import { httpUrl, siteOf } from './url.js';
 
 /** Career Engine's limits (SaveJobApplicationRequest). */
-export const LIMITS = { title: 200, company: 200, location: 200, salaryText: 200, url: 2000, description: 50000, externalId: 200 };
+export const LIMITS = { title: 200, company: 200, location: 200, salaryText: 200, url: 2000, description: 50000, externalId: 200, source: 200, proposalAngle: 5000, notes: 10000 };
 
 /**
  * @typedef {{
  *   title: string, company: string, location: string, workplaceType: string, employmentType: string,
  *   salaryMin: string, salaryMax: string, salaryCurrency: string, salaryPeriod: string, salaryText: string,
  *   deadline: string, postedAt: string, externalId: string, url: string, description: string,
+ *   source: string, proposalAngle: string, notes: string,
  * }} JobForm
  */
 
@@ -24,6 +25,7 @@ export function emptyForm() {
         title: '', company: '', location: '', workplaceType: '', employmentType: '',
         salaryMin: '', salaryMax: '', salaryCurrency: '', salaryPeriod: '', salaryText: '',
         deadline: '', postedAt: '', externalId: '', url: '', description: '',
+        source: '', proposalAngle: '', notes: '',
     };
 }
 
@@ -51,6 +53,7 @@ export function formFromExtraction({ fields }) {
         externalId: fields.externalId,
         url: fields.url,
         description: fields.description,
+        source: siteOf(fields.url),
     };
 }
 
@@ -103,6 +106,9 @@ export function validateForm(form) {
     tooLong('salaryText', 'The salary');
     tooLong('externalId', 'The listing ID');
     tooLong('url', 'The URL');
+    tooLong('source', 'The source');
+    tooLong('proposalAngle', 'The proposal angle');
+    tooLong('notes', 'The notes');
 
     if (form.description.trim().length > LIMITS.description) {
         errors.description = `The description is ${form.description.trim().length.toLocaleString('en-GB')} characters; Career Engine accepts up to ${LIMITS.description.toLocaleString('en-GB')}. Shorten it (for example remove the company boilerplate) before saving. Nothing is cut automatically.`;
@@ -148,6 +154,9 @@ export function buildPayload(form, { method, capturedAt, allowDuplicate = false 
         salary_text: orNull(form.salaryText),
         deadline_on: orNull(form.deadline),
         job_description: form.description.trim() === '' ? null : form.description,
+        source: orNull(form.source),
+        proposal_angle: orNull(form.proposalAngle),
+        notes: orNull(form.notes),
         capture: {
             method,
             site: url ? siteOf(url) || null : null,
@@ -173,6 +182,9 @@ export const SERVER_FIELD_MAP = {
     salary_text: 'salaryText',
     deadline_on: 'deadline',
     job_description: 'description',
+    source: 'source',
+    proposal_angle: 'proposalAngle',
+    notes: 'notes',
     'capture.external_id': 'externalId',
     'capture.posted_at': 'postedAt',
     'capture.workplace_type': 'workplaceType',
