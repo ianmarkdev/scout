@@ -8,7 +8,7 @@ import { PAY_PERIODS, formatSalary } from './salary.js';
 import { httpUrl, siteOf } from './url.js';
 
 /** Career Engine's limits (SaveJobApplicationRequest). */
-export const LIMITS = { title: 200, company: 200, location: 200, salaryText: 200, url: 2000, description: 50000, externalId: 200, source: 200, subjectLine: 200, proposalAngle: 5000, notes: 10000 };
+export const LIMITS = { title: 200, company: 200, location: 200, salaryText: 200, url: 2000, description: 50000, externalId: 200, source: 200, subjectLine: 200, proposalAngle: 5000, notes: 5000 };
 
 /**
  * @typedef {{

@@ -47,3 +47,11 @@ Web requests behave as before. The full Career Engine suite passed after these c
 - No schema change for duplicates. The comparison happens in PHP, which is fine at a few hundred applications per workspace (D1).
 - No CORS configuration. It isn't needed, because the extension uses host permissions.
 - No UI for tokens. Tokens are managed with the artisan command.
+
+## Follow-up: how-to-apply fields and notes
+
+- Migration `2026_10_24_030949_add_apply_details_to_job_applications_table.php` adds four nullable text columns to `job_applications`: `source`, `subject_line`, `apply_requirement` (CHECK: `video`, `test`, `video_and_test`) and `proposal_angle`. **It must be run: `php artisan migrate`.**
+- New enum `App\Domain\Applications\ApplyRequirement`, cast on `JobApplication`.
+- `SaveJobApplicationRequest` validates and normalises the four fields (source and subject line max 200, proposal angle max 5,000), so the web add/edit form has them too, under "How to apply".
+- `CaptureJobApplicationRequest` no longer drops `notes`: a capture stores the notes typed in the popup (max 5,000, as in the web form).
+- The application page shows Source, Subject line and Required to apply with the other details, and the proposal angle in its own card.

@@ -149,7 +149,7 @@ describe('form', () => {
         expect(validateForm({ ...filled(), salaryMin: '90000', salaryMax: '50000' }).salaryMax).toBeDefined();
         expect(validateForm({ ...filled(), salaryMin: 'lots' }).salaryMin).toBeDefined();
         expect(validateForm({ ...filled(), salaryCurrency: 'pounds' }).salaryCurrency).toBeDefined();
-        expect(validateForm({ ...filled(), notes: 'x'.repeat(10001) }).notes).toBeDefined();
+        expect(validateForm({ ...filled(), notes: 'x'.repeat(5001) }).notes).toBeDefined();
         expect(validateForm({ ...filled(), applyRequirement: 'essay' }).applyRequirement).toBeDefined();
     });
 

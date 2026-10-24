@@ -60,11 +60,11 @@ Headers: `Authorization: Bearer <token>`, `Accept: application/json`, `Content-T
 | `employment_type` | nullable, one of `full_time, part_time, contract, freelance, internship, other` |
 | `deadline_on` | nullable, `Y-m-d` |
 | `job_description` | nullable, string, max 50,000. **Rejected when longer, never truncated.** |
-| `source` | nullable, string, max 200. The job platform; the extension pre-fills the listing's domain (e.g. `linkedin.com`), the user may type a name instead. **Pending on the Laravel side.** |
-| `subject_line` | nullable, string, max 200. The email subject the listing asks applicants to use. **Pending on the Laravel side.** |
-| `apply_requirement` | nullable, one of `video, test, video_and_test`. **Pending on the Laravel side.** |
-| `proposal_angle` | nullable, string, max 5,000. **Pending on the Laravel side.** |
-| `notes` | nullable, string, max 10,000. **Pending on the Laravel side.** |
+| `source` | nullable, string, max 200. The job platform; the extension pre-fills the listing's domain (e.g. `linkedin.com`), the user may type a name instead. |
+| `subject_line` | nullable, string, max 200. The email subject the listing asks applicants to use. |
+| `apply_requirement` | nullable, one of `video, test, video_and_test` |
+| `proposal_angle` | nullable, string, max 5,000 |
+| `notes` | nullable, string, max 5,000 |
 | `capture` | optional object. Only the keys shown above are allowed. |
 | `capture.method` | `adapter, json-ld, meta, dom, fallback, manual` |
 | `capture.workplace_type` | `remote, hybrid, on_site` |
@@ -75,7 +75,7 @@ Headers: `Authorization: Bearer <token>`, `Accept: application/json`, `Content-T
 | `capture.posted_at`, `capture.captured_at` | date |
 | `allow_duplicate` | boolean, default false |
 
-**Ignored if sent:** `stage`, `owner_user_id`, `workspace_id`, `review_status` and any other field. The workspace, candidate profile and owner come from the token. The stage is always `saved`. (Until the Laravel side is updated, `source`, `subject_line`, `apply_requirement`, `proposal_angle` and `notes` are ignored and notes stay empty.)
+**Ignored if sent:** `stage`, `owner_user_id`, `workspace_id`, `review_status` and any other field. The workspace, candidate profile and owner come from the token. The stage is always `saved`.
 
 Text fields are normalised the same way as the web form: Unicode NFC, invisible and control characters stripped, and runs of spaces collapsed. The description keeps its line breaks.
 
