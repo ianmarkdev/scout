@@ -12,6 +12,9 @@ export const WORKPLACE_TYPES = ['remote', 'hybrid', 'on_site'];
 
 export const WORKPLACE_LABELS = { remote: 'Remote', hybrid: 'Hybrid', on_site: 'On-site' };
 
+/** What a listing asks for on top of the application itself. */
+export const APPLY_REQUIREMENTS = ['video', 'test', 'video_and_test'];
+
 /** First match wins; schema.org values (FULL_TIME, CONTRACTOR…) and common wording. */
 const EMPLOYMENT_PATTERNS = [
     [/\bfull[\s_-]?time\b/i, 'full_time'],
@@ -53,6 +56,17 @@ export function workplaceTypeFrom(text) {
     if (/\bon[\s-]?site\b|\bin[\s-]office\b|\boffice[\s-]based\b/i.test(t)) return 'on_site';
 
     return '';
+}
+
+/**
+ * The email subject a listing asks applicants to use, only when it is quoted
+ * ('use the subject line "Backend – Ref 12"'), so the exact wording is known.
+ * @param {unknown} text
+ */
+export function subjectLineFrom(text) {
+    const match = /\bsubject(?:[\s-]+line)?\b[^"“'‘\n]{0,40}["“'‘]([^"”'’\n]{3,200})["”'’]/i.exec(String(text ?? ''));
+
+    return match ? cleanLine(match[1]) : '';
 }
 
 /**

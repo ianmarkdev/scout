@@ -3,19 +3,19 @@
  * Career Engine validates everything again), and turned into the API payload.
  */
 
-import { EMPLOYMENT_TYPES, WORKPLACE_TYPES, locationWithWorkplace } from './fields.js';
+import { APPLY_REQUIREMENTS, EMPLOYMENT_TYPES, WORKPLACE_TYPES, locationWithWorkplace, subjectLineFrom } from './fields.js';
 import { PAY_PERIODS, formatSalary } from './salary.js';
 import { httpUrl, siteOf } from './url.js';
 
 /** Career Engine's limits (SaveJobApplicationRequest). */
-export const LIMITS = { title: 200, company: 200, location: 200, salaryText: 200, url: 2000, description: 50000, externalId: 200, source: 200, proposalAngle: 5000, notes: 10000 };
+export const LIMITS = { title: 200, company: 200, location: 200, salaryText: 200, url: 2000, description: 50000, externalId: 200, source: 200, subjectLine: 200, proposalAngle: 5000, notes: 10000 };
 
 /**
  * @typedef {{
  *   title: string, company: string, location: string, workplaceType: string, employmentType: string,
  *   salaryMin: string, salaryMax: string, salaryCurrency: string, salaryPeriod: string, salaryText: string,
  *   deadline: string, postedAt: string, externalId: string, url: string, description: string,
- *   source: string, proposalAngle: string, notes: string,
+ *   source: string, subjectLine: string, applyRequirement: string, proposalAngle: string, notes: string,
  * }} JobForm
  */
 
@@ -25,7 +25,7 @@ export function emptyForm() {
         title: '', company: '', location: '', workplaceType: '', employmentType: '',
         salaryMin: '', salaryMax: '', salaryCurrency: '', salaryPeriod: '', salaryText: '',
         deadline: '', postedAt: '', externalId: '', url: '', description: '',
-        source: '', proposalAngle: '', notes: '',
+        source: '', subjectLine: '', applyRequirement: '', proposalAngle: '', notes: '',
     };
 }
 
@@ -54,6 +54,7 @@ export function formFromExtraction({ fields }) {
         url: fields.url,
         description: fields.description,
         source: siteOf(fields.url),
+        subjectLine: subjectLineFrom(fields.description),
     };
 }
 
@@ -107,6 +108,7 @@ export function validateForm(form) {
     tooLong('externalId', 'The listing ID');
     tooLong('url', 'The URL');
     tooLong('source', 'The source');
+    tooLong('subjectLine', 'The subject line');
     tooLong('proposalAngle', 'The proposal angle');
     tooLong('notes', 'The notes');
 
@@ -126,6 +128,7 @@ export function validateForm(form) {
     if (typeof min === 'number' && typeof max === 'number' && max < min) errors.salaryMax = 'The maximum is lower than the minimum.';
     if (form.salaryCurrency.trim() !== '' && !/^[A-Za-z]{3}$/.test(form.salaryCurrency.trim())) errors.salaryCurrency = 'Use a 3-letter code such as GBP.';
     if (form.salaryPeriod !== '' && !PAY_PERIODS.includes(form.salaryPeriod)) errors.salaryPeriod = 'Choose a pay period.';
+    if (form.applyRequirement !== '' && !APPLY_REQUIREMENTS.includes(form.applyRequirement)) errors.applyRequirement = 'Choose what is required.';
     if (form.deadline !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(form.deadline)) errors.deadline = 'Use a date.';
 
     return errors;
@@ -155,6 +158,8 @@ export function buildPayload(form, { method, capturedAt, allowDuplicate = false 
         deadline_on: orNull(form.deadline),
         job_description: form.description.trim() === '' ? null : form.description,
         source: orNull(form.source),
+        subject_line: orNull(form.subjectLine),
+        apply_requirement: orNull(form.applyRequirement),
         proposal_angle: orNull(form.proposalAngle),
         notes: orNull(form.notes),
         capture: {
@@ -183,6 +188,8 @@ export const SERVER_FIELD_MAP = {
     deadline_on: 'deadline',
     job_description: 'description',
     source: 'source',
+    subject_line: 'subjectLine',
+    apply_requirement: 'applyRequirement',
     proposal_angle: 'proposalAngle',
     notes: 'notes',
     'capture.external_id': 'externalId',

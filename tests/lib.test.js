@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { dateOnly, employmentTypeFrom, locationFromJsonLd, locationWithWorkplace, workplaceTypeFrom } from '../src/lib/fields.js';
+import { dateOnly, employmentTypeFrom, locationFromJsonLd, locationWithWorkplace, subjectLineFrom, workplaceTypeFrom } from '../src/lib/fields.js';
 import { buildPayload, emptyForm, salaryTextFromFields, validateForm } from '../src/lib/form.js';
 import { formatSalary, parseSalaryText, salaryFromJsonLd } from '../src/lib/salary.js';
 import { looksLikeToken } from '../src/lib/storage.js';
@@ -74,6 +74,15 @@ describe('employment and workplace types', () => {
     });
 });
 
+describe('subject line', () => {
+    test('is taken only when the listing quotes it', () => {
+        expect(subjectLineFrom('Email your CV with the subject line "Backend Engineer – REQ-123".')).toBe('Backend Engineer – REQ-123');
+        expect(subjectLineFrom('Use subject: “Design role”')).toBe('Design role');
+        expect(subjectLineFrom('Put the job title in the subject line.')).toBe('');
+        expect(subjectLineFrom('')).toBe('');
+    });
+});
+
 describe('dates and locations', () => {
     test('dateOnly keeps valid dates and rejects invalid ones', () => {
         expect(dateOnly('2026-10-01T09:00:00+01:00')).toBe('2026-10-01');
@@ -141,12 +150,13 @@ describe('form', () => {
         expect(validateForm({ ...filled(), salaryMin: 'lots' }).salaryMin).toBeDefined();
         expect(validateForm({ ...filled(), salaryCurrency: 'pounds' }).salaryCurrency).toBeDefined();
         expect(validateForm({ ...filled(), notes: 'x'.repeat(10001) }).notes).toBeDefined();
+        expect(validateForm({ ...filled(), applyRequirement: 'essay' }).applyRequirement).toBeDefined();
     });
 
     test('builds the API payload without trimming the description content', () => {
         const description = 'Line one.\n\n- item';
         const payload = buildPayload(
-            { ...filled(), description, location: 'London', workplaceType: 'hybrid', salaryMin: '70,000', salaryMax: '85000', salaryCurrency: 'gbp', salaryPeriod: 'year', salaryText: 'GBP 70,000–85,000 / year', employmentType: 'full_time', externalId: ' R-1 ', source: 'x.example', proposalAngle: ' Lead with payments work ', notes: 'Referral from Sam.' },
+            { ...filled(), description, location: 'London', workplaceType: 'hybrid', salaryMin: '70,000', salaryMax: '85000', salaryCurrency: 'gbp', salaryPeriod: 'year', salaryText: 'GBP 70,000–85,000 / year', employmentType: 'full_time', externalId: ' R-1 ', source: 'x.example', subjectLine: 'Backend Ref 12', applyRequirement: 'video', proposalAngle: ' Lead with payments work ', notes: 'Referral from Sam.' },
             { method: 'json-ld', capturedAt: '2026-10-22T10:00:00.000Z' },
         );
 
@@ -160,6 +170,8 @@ describe('form', () => {
             deadline_on: null,
             job_description: description,
             source: 'x.example',
+            subject_line: 'Backend Ref 12',
+            apply_requirement: 'video',
             proposal_angle: 'Lead with payments work',
             notes: 'Referral from Sam.',
             capture: {
@@ -178,7 +190,7 @@ describe('form', () => {
     test('empty optional fields are sent as null', () => {
         const payload = buildPayload({ ...emptyForm(), title: 'T', company: 'C' }, { method: 'manual', capturedAt: 'now', allowDuplicate: true });
 
-        expect(payload).toMatchObject({ source_url: null, location: null, job_description: null, source: null, proposal_angle: null, notes: null, allow_duplicate: true });
+        expect(payload).toMatchObject({ source_url: null, location: null, job_description: null, source: null, subject_line: null, apply_requirement: null, proposal_angle: null, notes: null, allow_duplicate: true });
         expect(buildPayload({ ...emptyForm(), title: 'T' }, { method: 'manual', capturedAt: 'now' }).company_name).toBeNull();
         expect(payload.capture.salary).toBeNull();
     });

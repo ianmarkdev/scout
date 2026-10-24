@@ -39,6 +39,7 @@ describe('showing the extracted job', () => {
         expect($('source').value).toBe('jobs.example.com');
         expect($('proposalAngle').value).toBe('');
         expect($('notes').value).toBe('');
+        expect($('applyRequirement').value).toBe('');
         expect($('description').value).toContain('- 5+ years of PHP');
         expect($('description-count').textContent).toContain('/ 50,000 characters');
         expect($('method-line').textContent).toContain('structured data (JSON-LD)');
@@ -104,6 +105,8 @@ describe('editing and saving', () => {
         type('source', 'LinkedIn');
         type('proposalAngle', 'Payments scale-up experience');
         type('notes', 'Ask about visa.');
+        type('subjectLine', 'Backend application');
+        type('applyRequirement', 'test');
         expect($('salaryText').value).toBe('GBP 75,000–85,000 / year');
         expect(fetchImpl).not.toHaveBeenCalled();
 
@@ -117,6 +120,8 @@ describe('editing and saving', () => {
             company_name: 'Northwind Payments',
             salary_text: 'GBP 75,000–85,000 / year',
             source: 'LinkedIn',
+            subject_line: 'Backend application',
+            apply_requirement: 'test',
             proposal_angle: 'Payments scale-up experience',
             notes: 'Ask about visa.',
             capture: { method: 'json-ld', external_id: 'REQ-123', salary: { min: 75000, max: 85000, currency: 'GBP', period: 'year' }, captured_at: '2026-10-22T10:00:00.000Z' },
